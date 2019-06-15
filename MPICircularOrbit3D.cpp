@@ -91,7 +91,7 @@ int main( int argc, char *argv[] ){
 	//================Simulation Constants
 	int weightFunction = 1;  	//0/1/2 : NGP/CIC/TSC
 	int orbitIntegration = 1;	//0/1/2 : KDK/DKD/RK4
-	int poissonSolver = 0;		//0/1   : fft/isolated
+	int poissonSolver = 1;		//0/1   : fft/isolated
 	int boundary = 2;           	//0/1/2 : periodic/isolated/no boundary
 	int dim = 3;				
 	double L = 10.0;				//Length of box (from -L/2 ~ L/2)
@@ -491,7 +491,10 @@ void poisson_solver_fft_force_3d(int const dim, struct grid3D *grid){
   
 	/////////// inverse fft ///////////
 	fftw_execute(q);
-	double send_buf[grid->N/2], recv_buf[grid->N/2];
+	double *send_buf, *recv_buf;
+	send_buf = (double*) malloc( sizeof(double) * grid->N/2 );
+	recv_buf = (double*) malloc( sizeof(double) * grid->N/2 );	
+	//double send_buf[grid->N/2], recv_buf[grid->N/2];
 	/////////// normalization ///////////
 	for (int ii=0; ii < local_n0; ii+=1){
 		for (int jj=0; jj < Ny; jj+=1){
@@ -509,12 +512,12 @@ void poisson_solver_fft_force_3d(int const dim, struct grid3D *grid){
 	
 
 	if (MyRank == 0){
-		MPI_Send(&send_buf, grid->N/2, MPI_DOUBLE, 1, 11, MPI_COMM_WORLD);
-		MPI_Recv(&recv_buf, grid->N/2, MPI_DOUBLE, 1, 12, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		MPI_Send(send_buf, grid->N/2, MPI_DOUBLE, 1, 11, MPI_COMM_WORLD);
+		MPI_Recv(recv_buf, grid->N/2, MPI_DOUBLE, 1, 12, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 	}
 	else{
-		MPI_Recv(&recv_buf, grid->N/2, MPI_DOUBLE, 0, 11, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-		MPI_Send(&send_buf, grid->N/2, MPI_DOUBLE, 0, 12, MPI_COMM_WORLD);
+		MPI_Recv(recv_buf, grid->N/2, MPI_DOUBLE, 0, 11, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		MPI_Send(send_buf, grid->N/2, MPI_DOUBLE, 0, 12, MPI_COMM_WORLD);
 	}
 
 	for(int ii=0;ii<local_n0;ii++){
@@ -757,7 +760,9 @@ void isolatedPotential(struct grid3D *grid , fftw_complex *fftgf){
 	fftw_execute(q);
 	fftw_destroy_plan(q);
 
-	double send_buf[grid->N], recv_buf[grid->N];
+	double *send_buf, *recv_buf;
+	send_buf = (double*) malloc( sizeof(double) * grid->N );
+	recv_buf = (double*) malloc( sizeof(double) * grid->N );
 	//!!!!
 	for(int i=0;i<Nx;i++){
 		for(int j=0;j<Ny;j++){
@@ -772,10 +777,10 @@ void isolatedPotential(struct grid3D *grid , fftw_complex *fftgf){
 	}
 
 	if (MyRank == 0){
-		MPI_Send(&send_buf, grid->N, MPI_DOUBLE, 1, 111, MPI_COMM_WORLD);
+		MPI_Send(send_buf, grid->N, MPI_DOUBLE, 1, 111, MPI_COMM_WORLD);
 	}
 	else{
-		MPI_Recv(&recv_buf, grid->N, MPI_DOUBLE, 0, 111, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		MPI_Recv(recv_buf, grid->N, MPI_DOUBLE, 0, 111, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 		for(int i=0;i<Nx;i++){
 			for(int j=0;j<Ny;j++){
 				for(int k=0;k<Nz;k++){
@@ -1010,9 +1015,16 @@ void kick(struct particle3D *particle , double dt){
 	int YourRank = ((MyRank+1)%2);
 	int yini = int(YourRank*N/2);
 	int yfin = (YourRank+1) * int(N/2) + YourRank * (N%2);
-
-	double send_vx[N], send_vy[N], send_vz[N];
-	double recv_vx[N], recv_vy[N], recv_vz[N];
+	
+	
+	double *send_vx, *send_vy, *send_vz;
+	double *recv_vx, *recv_vy, *recv_vz;
+	send_vx = (double*) malloc( sizeof(double) * N );
+	send_vy = (double*) malloc( sizeof(double) * N );
+	send_vz = (double*) malloc( sizeof(double) * N );
+	recv_vx = (double*) malloc( sizeof(double) * N );
+        recv_vy = (double*) malloc( sizeof(double) * N );
+	recv_vz = (double*) malloc( sizeof(double) * N );
 
 	for(int i = ini ; i<fin ; i++){
 		//Cauculate the acceleration of each particle.
@@ -1030,18 +1042,18 @@ void kick(struct particle3D *particle , double dt){
 	}
 	
 	if (MyRank == 0){
-		MPI_Send(&send_vx, N, MPI_DOUBLE, 1, 111, MPI_COMM_WORLD);
-		MPI_Send(&send_vy, N, MPI_DOUBLE, 1, 112, MPI_COMM_WORLD);
-		MPI_Send(&send_vz, N, MPI_DOUBLE, 1, 113, MPI_COMM_WORLD);
+		MPI_Send(send_vx, N, MPI_DOUBLE, 1, 111, MPI_COMM_WORLD);
+		MPI_Send(send_vy, N, MPI_DOUBLE, 1, 112, MPI_COMM_WORLD);
+		MPI_Send(send_vz, N, MPI_DOUBLE, 1, 113, MPI_COMM_WORLD);
 	}
 	else{
-		MPI_Send(&send_vx, N, MPI_DOUBLE, 0, 121, MPI_COMM_WORLD);
-		MPI_Send(&send_vy, N, MPI_DOUBLE, 0, 122, MPI_COMM_WORLD);
-		MPI_Send(&send_vz, N, MPI_DOUBLE, 0, 123, MPI_COMM_WORLD);
+		MPI_Send(send_vx, N, MPI_DOUBLE, 0, 121, MPI_COMM_WORLD);
+		MPI_Send(send_vy, N, MPI_DOUBLE, 0, 122, MPI_COMM_WORLD);
+		MPI_Send(send_vz, N, MPI_DOUBLE, 0, 123, MPI_COMM_WORLD);
 
-		MPI_Recv(&recv_vx, N, MPI_DOUBLE, 0, 111, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-		MPI_Recv(&recv_vy, N, MPI_DOUBLE, 0, 112, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-		MPI_Recv(&recv_vz, N, MPI_DOUBLE, 0, 113, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		MPI_Recv(recv_vx, N, MPI_DOUBLE, 0, 111, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		MPI_Recv(recv_vy, N, MPI_DOUBLE, 0, 112, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		MPI_Recv(recv_vz, N, MPI_DOUBLE, 0, 113, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 		
 		for(int i = yini ; i < yfin ; i++){
 		       particle->vx[i] = recv_vx[i];
@@ -1050,9 +1062,9 @@ void kick(struct particle3D *particle , double dt){
 		}
 	}
 	if (MyRank == 0){
-		MPI_Recv(&recv_vx, N, MPI_DOUBLE, 1, 121, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-		MPI_Recv(&recv_vy, N, MPI_DOUBLE, 1, 122, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-		MPI_Recv(&recv_vz, N, MPI_DOUBLE, 1, 123, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		MPI_Recv(recv_vx, N, MPI_DOUBLE, 1, 121, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		MPI_Recv(recv_vy, N, MPI_DOUBLE, 1, 122, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		MPI_Recv(recv_vz, N, MPI_DOUBLE, 1, 123, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 		
 		for(int i = yini ; i < yfin ; i++){
 			particle->vx[i] = recv_vx[i];
